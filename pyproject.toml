@@ -1,0 +1,26 @@
+[project]
+name = "metabolica"
+version = "0.1.0"
+description = "電子生命育成計画 — 世界の情報を代謝しDNA塩基配列に刻む"
+requires-python = ">=3.12"
+license = "MIT"
+
+dependencies = [
+    "boto3",
+    "argon2-cffi",
+    "deap",
+    "numpy",
+    "pillow",
+    "requests",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+nft = [
+    "web3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
