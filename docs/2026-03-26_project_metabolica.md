@@ -152,8 +152,8 @@ Python DaemonはEC2上でsystemdに登録し、インスタンス起動と同時
 
 ## 実装ステップ
 
-1. [ ] AWSリソースのセットアップ（EC2, Lambda蘇生関数, S3バケット, DynamoDB テーブル）
-2. [ ] Python daemon骨格（systemd + 自動復帰）
+1. [x] AWSリソースのセットアップ（EC2, S3バケット, DynamoDB テーブル, API Gateway）※Lambda蘇生はSCP制限で保留
+2. [x] Python daemon骨格（systemd + 自動復帰）
 3. [ ] COLLECTフェーズ（Public API 2-3個を接続）
 4. [ ] DIGESTフェーズ（Comprehend連携 or ローカルNLP）
 5. [ ] METABOLIZEフェーズ（Hashchain + Argon2 + GA + CA）
