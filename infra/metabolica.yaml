@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Metabolica — 電子生命育成計画 インフラ構成"
+Description: "Metabolica - Digital Life Cultivation Infrastructure"
 
 Parameters:
   Env:
@@ -10,13 +10,13 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     Description: EC2 SSH key pair name
   Ec2Ami:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
-    Description: Amazon Linux 2023 AMI
+    Type: AWS::EC2::Image::Id
+    Default: ami-007ea17fb9422e93f
+    Description: Amazon Linux 2023 AMI (ap-northeast-1)
 
 Resources:
   # ============================================================
-  # S3 — 生データ + DNA配列の保存
+  # S3 - Raw data + DNA sequence storage
   # ============================================================
   DataBucket:
     Type: AWS::S3::Bucket
@@ -31,7 +31,7 @@ Resources:
                 TransitionInDays: 30
 
   # ============================================================
-  # DynamoDB — 生命体のstate管理
+  # DynamoDB - Life entity state management
   # ============================================================
   StateTable:
     Type: AWS::DynamoDB::Table
@@ -61,27 +61,9 @@ Resources:
         - AttributeName: day
           KeyType: HASH
 
-  # ============================================================
-  # SSM Parameter Store — APIキー等のシークレット管理
-  # ============================================================
-  ParamNewsApiKey:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub "/metabolica/${Env}/NEWSAPI_KEY"
-      Type: String
-      Value: "REPLACE_ME"
-      Description: NewsAPI key
-
-  ParamWeatherKey:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: !Sub "/metabolica/${Env}/OPENWEATHERMAP_KEY"
-      Type: String
-      Value: "REPLACE_ME"
-      Description: OpenWeatherMap key
 
   # ============================================================
-  # IAM — EC2用ロール
+  # IAM - EC2 role
   # ============================================================
   Ec2Role:
     Type: AWS::IAM::Role
@@ -122,11 +104,6 @@ Resources:
                   - comprehend:DetectKeyPhrases
                   - comprehend:DetectEntities
                 Resource: "*"
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                  - ssm:GetParameters
-                Resource: !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/metabolica/${Env}/*"
 
   Ec2InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -135,7 +112,7 @@ Resources:
         - !Ref Ec2Role
 
   # ============================================================
-  # EC2 — Python Daemon（生命体の心臓）
+  # EC2 - Python Daemon (heart of the life entity)
   # ============================================================
   DaemonSG:
     Type: AWS::EC2::SecurityGroup
@@ -173,119 +150,7 @@ Resources:
           # TODO: git clone and systemd setup
 
   # ============================================================
-  # IAM — Lambda蘇生関数用ロール
-  # ============================================================
-  ResurrectLambdaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "metabolica-resurrect-lambda-${Env}"
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
-      Policies:
-        - PolicyName: Ec2StartStop
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ec2:StartInstances
-                  - ec2:DescribeInstances
-                Resource: "*"
-
-  # ============================================================
-  # Lambda — EC2自動停止を突破する不死機構
-  # ============================================================
-  ResurrectFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub "metabolica-resurrect-${Env}"
-      Runtime: python3.12
-      Handler: index.handler
-      Role: !GetAtt ResurrectLambdaRole.Arn
-      Timeout: 30
-      Environment:
-        Variables:
-          INSTANCE_ID: !Ref DaemonInstance
-      Code:
-        ZipFile: |
-          import boto3
-          import os
-
-          def handler(event, context):
-              ec2 = boto3.client("ec2", region_name=os.environ.get("AWS_REGION", "ap-northeast-1"))
-              instance_id = os.environ["INSTANCE_ID"]
-              state = ec2.describe_instances(InstanceIds=[instance_id])
-              current = state["Reservations"][0]["Instances"][0]["State"]["Name"]
-              if current == "stopped":
-                  ec2.start_instances(InstanceIds=[instance_id])
-                  return {"status": "resurrected", "instance": instance_id}
-              return {"status": "already_running", "instance": instance_id}
-
-  # CloudWatch Events — 自動停止5分後に蘇生 (JST: 18:05, 20:05, 00:05)
-  ResurrectRule1805:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub "metabolica-resurrect-1805-${Env}"
-      ScheduleExpression: "cron(5 9 * * ? *)"
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt ResurrectFunction.Arn
-          Id: resurrect
-
-  ResurrectRule2005:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub "metabolica-resurrect-2005-${Env}"
-      ScheduleExpression: "cron(5 11 * * ? *)"
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt ResurrectFunction.Arn
-          Id: resurrect
-
-  ResurrectRule0005:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: !Sub "metabolica-resurrect-0005-${Env}"
-      ScheduleExpression: "cron(5 15 * * ? *)"
-      State: ENABLED
-      Targets:
-        - Arn: !GetAtt ResurrectFunction.Arn
-          Id: resurrect
-
-  # Lambda invoke permissions for EventBridge
-  ResurrectPermission1805:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref ResurrectFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt ResurrectRule1805.Arn
-
-  ResurrectPermission2005:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref ResurrectFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt ResurrectRule2005.Arn
-
-  ResurrectPermission0005:
-    Type: AWS::Lambda::Permission
-    Properties:
-      FunctionName: !Ref ResurrectFunction
-      Action: lambda:InvokeFunction
-      Principal: events.amazonaws.com
-      SourceArn: !GetAtt ResurrectRule0005.Arn
-
-  # ============================================================
-  # API Gateway + Lambda — 生命体の状態をJSON APIで公開
+  # API Gateway + Lambda - Expose life entity status via JSON API
   # ============================================================
   ApiLambdaRole:
     Type: AWS::IAM::Role
@@ -390,9 +255,6 @@ Outputs:
 
   DaemonPublicIp:
     Value: !GetAtt DaemonInstance.PublicIp
-
-  ResurrectFunctionArn:
-    Value: !GetAtt ResurrectFunction.Arn
 
   ApiUrl:
     Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Env}/status"

@@ -16,6 +16,7 @@ venv/
 
 # AWS
 .aws/
+docs/aws-environment.md
 
 # pytest
 .pytest_cache/

@@ -1,0 +1,16 @@
+[Unit]
+Description=Metabolica Daemon - Digital Life Cultivation
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/opt/metabolica
+ExecStart=/opt/metabolica/venv/bin/python daemon/main.py
+Restart=always
+RestartSec=10
+EnvironmentFile=/opt/metabolica/.env
+
+[Install]
+WantedBy=multi-user.target
