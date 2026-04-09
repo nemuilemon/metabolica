@@ -1,9 +1,12 @@
 """Metabolica Daemon - Daily Metabolism Core Loop"""
 
+import json
 import logging
 import time
 import schedule
 from datetime import datetime, timezone, timedelta
+
+from collect import collect_all
 
 JST = timezone(timedelta(hours=9))
 
@@ -21,7 +24,8 @@ def daily_metabolism():
 
     # Phase 1: COLLECT
     log.info("Phase 1: COLLECT - fetching public API data")
-    # TODO: implement collect phase
+    collected = collect_all()
+    log.info("Collected payload size: %d bytes", len(json.dumps(collected)))
 
     # Phase 2: DIGEST
     log.info("Phase 2: DIGEST - analyzing collected data")
