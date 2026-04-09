@@ -7,6 +7,7 @@ import schedule
 from datetime import datetime, timezone, timedelta
 
 from collect import collect_all
+from storage import save_raw_collection
 
 JST = timezone(timedelta(hours=9))
 
@@ -26,6 +27,10 @@ def daily_metabolism():
     log.info("Phase 1: COLLECT - fetching public API data")
     collected = collect_all()
     log.info("Collected payload size: %d bytes", len(json.dumps(collected)))
+    try:
+        save_raw_collection(collected)
+    except Exception as e:
+        log.error("Failed to save raw collection to S3: %s", e)
 
     # Phase 2: DIGEST
     log.info("Phase 2: DIGEST - analyzing collected data")
