@@ -26,7 +26,7 @@ cd "$INSTALL_DIR"
 python3.12 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
-pip install schedule boto3 requests
+pip install schedule boto3 requests numpy argon2-cffi
 
 # Create .env template
 echo "[4/5] Creating .env file..."
