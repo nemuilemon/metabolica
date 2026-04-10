@@ -67,22 +67,28 @@ def save_dna_record(record: dict) -> str:
     return key
 
 
+# day=0 is reserved as the "latest pointer" metadata entry.
+# This avoids needing dynamodb:Scan permission.
+POINTER_DAY = 0
+
+
 def get_latest_chain_entry() -> tuple[int, str]:
-    """Get the most recent (day, raw_hash) from the DNA chain. Genesis if empty."""
+    """Get the most recent (day, raw_hash) via the pointer item. Genesis if empty."""
     table = _ddb.Table(DNA_CHAIN_TABLE)
-    response = table.scan(
-        ProjectionExpression="#d, raw_hash",
-        ExpressionAttributeNames={"#d": "day"},
-    )
-    items = response.get("Items", [])
-    if not items:
+    response = table.get_item(Key={"day": POINTER_DAY})
+    item = response.get("Item")
+    if not item:
         return 0, GENESIS_HASH
-    latest = max(items, key=lambda x: int(x["day"]))
-    return int(latest["day"]), str(latest.get("raw_hash", GENESIS_HASH))
+    return int(item.get("latest_day", 0)), str(item.get("latest_hash", GENESIS_HASH))
 
 
 def append_dna_chain(record: dict) -> None:
-    """Append a DNA record to the DynamoDB chain table."""
+    """Append a DNA record and update the latest-pointer atomically-ish."""
     table = _ddb.Table(DNA_CHAIN_TABLE)
     table.put_item(Item=_to_ddb(record))
+    table.put_item(Item={
+        "day": POINTER_DAY,
+        "latest_day": record["day"],
+        "latest_hash": record["raw_hash"],
+    })
     log.info("Appended day %d to DynamoDB chain", record["day"])
