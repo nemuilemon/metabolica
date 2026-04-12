@@ -1,5 +1,6 @@
-"""Metabolica Daemon - Daily Metabolism Core Loop"""
+"""Metabolica Daemon - Metabolism Core Loop (every 30 min)"""
 
+import io
 import logging
 import sys
 import time
@@ -20,21 +21,33 @@ from storage import (  # noqa: E402
     get_latest_chain_entry,
     save_dna_record,
     save_raw_collection,
+    upload_log,
 )
 
 JST = timezone(timedelta(hours=9))
 
+# Capture logs in memory for S3 upload
+log_buffer = io.StringIO()
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),           # stdout → journalctl
+        logging.StreamHandler(log_buffer),  # memory → S3
+    ],
 )
 log = logging.getLogger("metabolica")
 
 
-def daily_metabolism():
-    """Run the daily metabolism cycle — five phases end-to-end."""
-    today = datetime.now(JST).strftime("%Y-%m-%d")
-    log.info("=== Daily Metabolism Start: %s ===", today)
+def metabolism_cycle():
+    """Run a single metabolism cycle — five phases end-to-end."""
+    log_buffer.truncate(0)
+    log_buffer.seek(0)
+
+    now = datetime.now(JST)
+    timestamp = now.strftime("%Y-%m-%d %H:%M")
+    log.info("=== Metabolism Cycle Start: %s ===", timestamp)
 
     # Phase 1: COLLECT
     log.info("Phase 1: COLLECT")
@@ -64,7 +77,8 @@ def daily_metabolism():
 
     record = {
         "day": day,
-        "date": today,
+        "date": now.strftime("%Y-%m-%d"),
+        "time": now.strftime("%H:%M:%S"),
         "raw_hash": digested["raw_hash"],
         "prev_day_hash": prev_hash,
         "digest_summary": {
@@ -83,23 +97,29 @@ def daily_metabolism():
     except Exception as e:
         log.error("Failed to persist DNA record: %s", e)
 
-    log.info("=== Daily Metabolism Complete: day %d (%s) ===", day, today)
+    log.info("=== Metabolism Cycle Complete: day %d (%s) ===", day, timestamp)
+
+    # Upload this cycle's log to S3
+    try:
+        upload_log(log_buffer.getvalue(), day, now)
+    except Exception as e:
+        log.error("Failed to upload log to S3: %s", e)
 
 
 def main():
-    log.info("Metabolica Daemon starting...")
+    log.info("Metabolica Daemon starting (30min interval)...")
 
-    # Run metabolism daily at 03:00 JST
-    schedule.every().day.at("03:00").do(daily_metabolism)
+    # Run every 30 minutes
+    schedule.every(30).minutes.do(metabolism_cycle)
 
     # Run once on startup
     log.info("Running initial metabolism cycle...")
-    daily_metabolism()
+    metabolism_cycle()
 
-    log.info("Scheduler active. Waiting for next cycle...")
+    log.info("Scheduler active. Next cycle in 30 minutes...")
     while True:
         schedule.run_pending()
-        time.sleep(60)
+        time.sleep(30)
 
 
 if __name__ == "__main__":

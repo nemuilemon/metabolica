@@ -54,7 +54,8 @@ def save_dna_record(record: dict) -> str:
     """Save the full DNA record JSON to S3. Returns the S3 key."""
     day = record["day"]
     date = record["date"]
-    key = f"dna/{date}_day{day:04d}.json"
+    time_str = record.get("time", "000000").replace(":", "")
+    key = f"dna/{date}/day{day:04d}_{time_str}.json"
 
     body = json.dumps(record, ensure_ascii=False, indent=2).encode("utf-8")
     _s3.put_object(
@@ -92,3 +93,19 @@ def append_dna_chain(record: dict) -> None:
         "latest_hash": record["raw_hash"],
     })
     log.info("Appended day %d to DynamoDB chain", record["day"])
+
+
+def upload_log(log_text: str, day: int, now: datetime) -> str:
+    """Upload a cycle's log to S3. Returns the S3 key."""
+    date_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%H%M%S")
+    key = f"logs/{date_str}/day{day:04d}_{time_str}.log"
+
+    _s3.put_object(
+        Bucket=S3_BUCKET,
+        Key=key,
+        Body=log_text.encode("utf-8"),
+        ContentType="text/plain; charset=utf-8",
+    )
+    log.info("Uploaded log to s3://%s/%s", S3_BUCKET, key)
+    return key
